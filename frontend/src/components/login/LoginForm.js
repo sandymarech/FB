@@ -3,12 +3,21 @@ import { Link } from "react-router-dom";
 import * as Yup from "yup";
 import LoginInput from "../../components/inputs/loginInput";
 import { useState } from "react";
+import DotLoader from "react-spinners/DotLoader";
+import axios from "axios";
+import {useDispatch} from "react-redux";
+import Cookies from 'js-cookie'
+import { useNavigate } from "react-router-dom";
+import { bindActionCreators } from "redux";
+
 const loginInfos = {
   email: "",
   password: "",
 };
 
-export default function LoginForm() {
+export default function LoginForm({setVisible}) {
+  const dispatch = useDispatch();
+  const navigate = useNavigate()
   const [login, setLogin] = useState(loginInfos);
   const { email, password } = login;
   const handleLoginChange = (e) => {
@@ -22,6 +31,22 @@ export default function LoginForm() {
       .max(100),
     password: Yup.string().required("Password is required"),
   });
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+  const loginSubmit = async ()=>{
+    try{
+      setLoading(true);
+      const {data} = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/login`, {email, password});
+      const {message, ...rest} = data;
+      dispatch({type: "LOGIN", payload: data});
+      Cookies.set("user", JSON.stringify(data));
+      navigate("/");
+    }catch (error){
+      setLoading(false);
+      setError(error.response.data.message)
+    }
+  }
   return (
     <div className="login_wrap">
       <div className="login_1">
@@ -39,6 +64,7 @@ export default function LoginForm() {
               password,
             }}
             validationSchema={loginValidation}
+            onSubmit={()=>{loginSubmit();}}
           >
             {(formik) => (
               <Form>
@@ -64,8 +90,10 @@ export default function LoginForm() {
           <Link to="/forgot" className="forgot_password">
             Forgot password?
           </Link>
+          <DotLoader color="#1876f2" loading={loading} size={30}/>
+          {error && <div className="error_text">{error}</div> }
           <div className="sign_splitter"></div>
-          <button className="blue_btn open_signup">Create Account</button>
+          <button className="blue_btn open_signup" onClick={()=>setVisible(true)}>Create Account</button>
         </div>
         <Link to="/" className="sign_extra">
           <b>Create a Page</b> for a celebrity, brand or business.

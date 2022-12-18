@@ -1,9 +1,17 @@
 import {Form, Formik} from "formik";
 import { useState } from "react";
 import RegisterInput from "../inputs/registerInput";
-import * as Yup from 'yup'
+import * as Yup from 'yup';
+import DateOfBirthSelect from "./DateOfBirthSelect";
+import GenderSelect from "./GenderSelect";
+import DotLoader from "react-spinners/DotLoader";
+import axios from "axios";
+import {useDispatch} from "react-redux";
+import Cookies from 'js-cookie'
+import { useNavigate } from "react-router-dom";
 
-export default function RegisterForm() {
+export default function RegisterForm({setVisible}) {
+  const navigate = useNavigate()
   const userInfos = {
     first_name: "",
     last_name: "",
@@ -44,18 +52,70 @@ export default function RegisterForm() {
         .min(6,"Password must be at least six characters")
         .max(18, "Password cannot exceed 18 characters.")
   })
+  const dispatch = useDispatch();
+  const [dateError, setDateError] = useState("");
+  const [genderError, setGenderError] = useState("");
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+  const [loading, setLoading] = useState(false);
+  const registerSubmit = async()=>{
+    try{
+      const {data} = await axios.post(`${process.env.REACT_APP_BACKEND_URL}/register`,
+      {
+        first_name,
+        last_name,
+        email,
+        password,
+        bYear,
+        bMonth,
+        bDay,
+        gender
+      }
+      );
+      setError("");
+      setSuccess(data.message);
+      const {message, ...rest} = data;
+      setTimeout(()=>{
+        dispatch({type:"LOGIN", payload: rest});
+        Cookies.set("user", JSON.stringify(rest));
+        navigate("/");
+      }, 2000)
+    } catch(error){
+      setLoading(false);
+      setSuccess("");
+      setError(error.response.data.message);
+    }
+  }
   return (
-    <div classNAme="blur">
+    <div className="blur">
       <div className="register">
         <div className="register_header">
-          <i className="exit_icon"></i>
+          <i className="exit_icon" onClick={()=>{setVisible(false)}}></i>
           <span>Sign Up</span>
           <span>it's quick and easy</span>
         </div>
         <Formik 
           enableReinitialize 
           initialValues={{first_name, last_name,email,password,bYear,bMonth, bDay, gender}}
-          validationSchema={registerValidation}>
+          validationSchema={registerValidation}
+          onSubmit={()=>{
+            let current_date = new Date();
+            let picked_date = new Date(bYear, bMonth - 1, bDay);
+            let at_least_18 = new Date(1970 + 18, 0, 1);
+            let older_than_seventy = new Date(1970+70, 0, 1);
+            if (current_date - picked_date < at_least_18){
+              setDateError("It looks like you've entered the wrong information. Please make sure that you use your real date of birth.")
+            } else if(current_date - picked_date > older_than_seventy){
+              setDateError("It looks like you've entered the wrong information. Please make sure that you use your real date of birth.")
+            } else if(gender===""){
+              setDateError("");
+              setGenderError("Please choose a gender. You can change who can see this later.");
+            } else {
+              setDateError("");
+              setGenderError("");
+              registerSubmit();
+            }
+          }}>
           {(formik)=>(
           <Form className="register_form">
             <div className="reg_line">
@@ -67,7 +127,7 @@ export default function RegisterForm() {
               />
               <RegisterInput 
                 type="text"
-                placeholder="Surname"
+                placeholder="Last Name"
                 name="last_name"
                 onChange={handleRegisterChange}
               />
@@ -82,7 +142,7 @@ export default function RegisterForm() {
             </div>
             <div className="reg_line">
             <RegisterInput 
-                type="text"
+                type="password"
                 placeholder="Password"
                 name="password"
                 onChange={handleRegisterChange}
@@ -92,65 +152,23 @@ export default function RegisterForm() {
               <div className="reg_line_header">
                 Date of Birth <i className="info_icon"></i>
               </div>
-              <div className="reg_grid">
-              <select name="bMonth" value={bMonth} onChange={handleRegisterChange}>
-                  {month.map((month, i)=> (
-                    <option value={month} key={i}>
-                      {month}
-                    </option>
-                  ))}
-                </select>
-                <select name="bDay" value={bDay} onChange={handleRegisterChange}>
-                  {days.map((day, i)=>(
-                    <option value={day} key={i}>
-                      {day}
-                    </option>
-                  ))}
-                </select>
-                <select name="bYear" value={bYear} onChange={handleRegisterChange}>
-                  {years.map((year, i)=>(
-                    <option value={year} key={i}>
-                      {year}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <DateOfBirthSelect 
+                bMonth={bMonth} 
+                bDay={bDay} 
+                bYear={bYear}
+                month={month}
+                day={days}
+                year={years}
+                handleRegisterChange={handleRegisterChange}
+                dateError={dateError}
+                />
               <div className="reg_col">
                 <div className="reg_line_header">
                   Gender <i className="info_icon"></i>
                 </div>
-                <div className="reg_grid">
-                  <label htmlFor="male">
-                    Male 
-                    <input
-                      type="radio"
-                      name="gender"
-                      id="male"
-                      value="male"
-                      onChange={handleRegisterChange}
-                    />
-                  </label>
-                  <label htmlFor="female">
-                    Female 
-                    <input
-                      type="radio"
-                      name="gender"
-                      id="female"
-                      value="female"
-                      onChange={handleRegisterChange}
-                    />
-                  </label>
-                  <label htmlFor="male">
-                    Custom 
-                    <input
-                      type="radio"
-                      name="gender"
-                      id="custom"
-                      value="custom"
-                      onChange={handleRegisterChange}
-                    />
-                  </label>
-                </div>
+              <GenderSelect
+                handleRegisterChange={handleRegisterChange}
+                genderError={genderError}/>
               </div>
               <div className="reg_infos">
                 By clicking Sign Up, you agree to our{" "}
@@ -162,6 +180,9 @@ export default function RegisterForm() {
                 <button className="blue_btn open_signup">Sign Up</button>
               </div>
             </div>
+            <DotLoader color="#1876f2" loading={loading} size={30}/>
+            {error && <div className="error_text">{error}</div>}
+            {success && <div className="error_text">{success}</div>}
             </Form>
             )}
           </Formik>
